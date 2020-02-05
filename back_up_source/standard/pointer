@@ -1,0 +1,196 @@
+#include "llvm/Pass.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Type.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/APSInt.h"
+#include "llvm/IR/Instruction.h"
+#include <iostream>
+#include <algorithm>
+#include <list>
+
+#define Before 0
+#define After 1
+
+
+
+using namespace llvm;
+using namespace std;
+
+
+
+namespace {
+struct standard : public ModulePass {
+  static char ID;
+  standard(): ModulePass(ID) {}
+
+
+	Instruction* getNextInstruction(Instruction& i) {
+	BasicBlock::iterator it(&i);
+	Instruction *pi =  dyn_cast<Instruction>(it); 
+
+	return pi;
+	}
+
+virtual bool doInitialization(Module &M) {
+	Mod = &M; 
+	 // get constants needed to create a printf call
+ 	Type *charPointerType = PointerType::get(IntegerType::
+	get(Mod->getContext(), 8), 0);
+	  FunctionType *printfTy = FunctionType::get(IntegerType::get(Mod->getContext(), 32),
+ 	std::vector<Type*>(1, charPointerType), true);
+
+	
+	
+	
+  	// insert function prototype if needed
+ 	Print = M.getOrInsertFunction("printf", printfTy);
+	return false;
+	}
+
+	
+void insert_func(Instruction* I,std::string printString,Constant* func,unsigned char flag){
+
+		std::vector <Value *> Args;
+		std::vector <OperandBundleDef> bundles;
+		
+		IRBuilder<> Builder(dyn_cast<BasicBlock>(I->getParent()));
+		Args.push_back( Builder.CreateGlobalStringPtr(printString.c_str()) );
+		if(flag==Before){
+		I->getParent()->begin()->getParent()->getInstList().insert(I->getIterator(), CallInst::Create(func, Args, ""));
+		}else if(flag==After){
+		I->getParent()->begin()->getParent()->getInstList().insertAfter(I->getIterator(), CallInst::Create(func, Args, ""));
+		}
+}
+	
+	bool isPointerToPointer(const Value* V) {
+    const Type* T = V->getType();
+    return T->isPointerTy() && T->getContainedType(0)->isPointerTy();
+}
+
+
+  bool runOnModule(Module &M) override {
+	Mod = &M;
+	
+	errs().changeColor(raw_ostream::RED);
+	errs() << "Module::iterator" << " ...\n";
+	errs().resetColor();
+	llvm::ArrayRef <Value *> idxList;
+
+	list<string> l1;
+	list<string>::iterator itor;
+	list<string>::iterator itor1;
+		
+	for(Module::iterator F = M.begin(); F !=M.end(); ++F){
+
+		errs().changeColor(raw_ostream::GREEN);
+		errs() << "Function::iterator " << F->getName()<<" ...\n";
+		errs().resetColor();
+
+	
+		for(Function::iterator BB = F->begin(), EE = F->end(); BB !=EE; ++BB) {
+		
+		
+		errs() << "BasicBlock::iterator" << " ...\n";
+		errs().resetColor();
+
+
+
+		for(BasicBlock::iterator IS = BB->begin(), IE = BB->end(); IS !=IE; ++IS){
+
+		errs().changeColor(raw_ostream::GREEN);
+		IS->dump();
+		errs().resetColor();
+
+	if (LoadInst *LI = dyn_cast<LoadInst>(IS))
+	{
+
+
+		Value *V1 = LI->getOperand(0);
+
+		if(isPointerToPointer(V1)){
+
+		itor = find(l1.begin(),l1.end(),V1->getName());
+		if(itor == l1.end()){
+
+		}
+		else{
+		errs().changeColor(raw_ostream::RED);
+		errs() <<*itor;
+		errs().resetColor();
+		errs() << " access global variable \n";
+		
+
+		}
+			}
+
+		
+	}
+	else if (StoreInst *si = dyn_cast<StoreInst>(IS))
+	{ 
+		
+	
+	     	Value *V1 = si->getOperand(0);
+
+		Value *V2 = si->getOperand(1);
+		itor = find(l1.begin(),l1.end(),V2->getName());
+		itor1 = find(l1.begin(),l1.end(),V1->getName());
+		
+		if(((dyn_cast<GlobalValue>(V1)) && (isPointerToPointer(V2))) ||(!(itor1 == l1.end()))){
+			errs().changeColor(raw_ostream::YELLOW);
+			errs()<< "pointer variable : ";
+			errs() << V2->getName() << "\n";
+
+		l1.push_back(V2->getName());
+		
+
+		errs().resetColor();
+		
+		}
+				 
+		else if(!(itor == l1.end())){
+		
+		l1.remove(V2->getName());
+		errs() << "V2->getName() : " <<V2->getName() <<"\n";
+		
+		}
+		
+		l1.sort();
+		l1.unique();
+		errs().changeColor(raw_ostream::BLUE);
+		for(itor=l1.begin(); itor != l1.end(); itor++)
+ 		{
+		errs() << "iterator : ";
+		errs() << *itor << "\n";
+		}
+		errs().resetColor();
+		
+		}
+
+		}
+
+	}			
+			
+} 
+
+	
+    return false;
+  }
+
+  private:
+	Module *Mod;
+	Constant *Print;
+
+	
+	 
+}; // end of struct standard
+}  // end of anonymous namespace
+
+char standard::ID = 0;
+static RegisterPass<standard> X("standard", "standard Pass",
+                             false /* Only looks at CFG */,
+                             false /* Analysis Pass */);
+

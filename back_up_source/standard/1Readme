@@ -1,0 +1,10 @@
+pointer -> 소스 짜서 했으나 포인터의 포인터 추적안됨, 포인터만 추적가능 , global variable 출력
+7월 11일 파일 -> value 에 관한 함수 출력해봄
+standardu -> loop
+newstandardcp -> loop 시작에 printf 삽입
+Untitled Document3 -> .cond .end 확인
+standard_backup -> ..user iterator 사용
+Untitled Document -> 공유변수(여기서는 number) 를 가져와 이용
+Untitled Document6 -> global 사용하면 앞뒤로 printf 삽입
+
+Untitled Document4 -> ...

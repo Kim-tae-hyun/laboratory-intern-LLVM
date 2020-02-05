@@ -1,0 +1,364 @@
+#include "llvm/Pass.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Type.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/APSInt.h"
+#include "llvm/ADT/Twine.h"
+#include "llvm/Analysis/LoopInfo.h"
+#include "llvm/Analysis/LoopPass.h"
+
+
+#define Before 0
+#define After 1
+
+
+/*
+Colors {
+  BLACK = 0, RED, GREEN, YELLOW,
+  BLUE, MAGENTA, CYAN, WHITE,
+  SAVEDCOLOR
+}
+*/
+using namespace llvm;
+using namespace std;
+
+/*
+ for (LoopInfo::iterator I = LI.begin();; ++I) {
+assert(I != LI.end() && "Couldn't find loop");
+if (*I == Unloop) {
+LI.removeLoop(I);
+break;
+}
+}
+*/
+void Loop::dump() const {
+print(dbgs());
+}
+
+namespace {
+struct standard : public ModulePass {
+  static char ID;
+  standard(): ModulePass(ID) {}
+
+
+	Instruction* getNextInstruction(Instruction& i) {
+	BasicBlock::iterator it(&i);
+	Instruction *pi =  dyn_cast<Instruction>(it); 
+
+	return pi;
+	}
+virtual void getAnalysisUsage(AnalysisUsage &AU) const{
+    	AU.setPreservesAll();
+  	 AU.addRequired<LoopInfoWrapperPass>();
+    }
+virtual bool doInitialization(Module &M) {
+	Mod = &M; 
+	 // get constants needed to create a printf call
+ 	Type *charPointerType = PointerType::get(IntegerType::
+	get(Mod->getContext(), 8), 0);
+	  FunctionType *printfTy = FunctionType::get(IntegerType::get(Mod->getContext(), 32),
+ 	std::vector<Type*>(1, charPointerType), true);
+	
+  	// insert function prototype if needed
+ 	Print = M.getOrInsertFunction("printf", printfTy);
+	return false;
+	}
+
+	
+void insert_func(Instruction* I,std::string printString,Constant* func,unsigned char flag){
+
+		std::vector <Value *> Args;
+		std::vector <OperandBundleDef> bundles;
+		IRBuilder<> Builder(dyn_cast<BasicBlock>(I->getParent()));
+		Args.push_back( Builder.CreateGlobalStringPtr(printString.c_str()) );
+		if(flag==Before){
+		I->getParent()->begin()->getParent()->getInstList().insert(I->getIterator(), CallInst::Create(func, Args, ""));
+		}else if(flag==After){
+		I->getParent()->begin()->getParent()->getInstList().insertAfter(I->getIterator(), CallInst::Create(func, Args, ""));
+		}
+}
+
+
+  bool runOnModule(Module &M) override {
+	Mod = &M;
+	
+	errs().changeColor(raw_ostream::RED);
+	errs() << "Module::iterator" << " ...\n";
+	errs().resetColor();
+		
+	
+	for(Module::global_iterator gs = M.global_begin(), ge = M.global_end(); gs != ge; ++gs){
+	errs() << "GlobalVariable*   : " << gs->getName();
+		GlobalVariable *GV = dyn_cast<GlobalVariable>(gs);
+		Value* V = dyn_cast<Value>(gs);
+		
+		errs()<<"  | GV " << GV;
+		for(unsigned int i=0; i<gs->getNumOperands(); i++)
+				{
+				 errs()<<" | *(gs->getOperand(i) "<<*(gs->getOperand(i));
+ 				errs()<<" | "<<(gs->getOperand(i));
+				}	
+				errs()<<"\n";
+
+		for(auto U : GV->users()){  // U is of type User*
+		   if (auto I = dyn_cast<Instruction>(U)){
+			// an instruction uses V
+			I->dump();
+		     }
+		}
+		errs()<<"|___________________________|\n";
+		for(Value::use_iterator it=V->use_begin(); it!=V->use_end();++it){  // U is of type Use*
+		     errs()<<*it->get()<<"\n";
+			if (auto I = dyn_cast<Instruction>(it->getUser())){
+			// an instruction uses V
+				I->dump();
+		     }
+		}
+	}
+
+
+	/*for(Module::iterator F = M.begin(); F !=M.end(); ++F){
+		Function *function = dyn_cast<Function>(&F);
+		for (auto &bb : function) {
+		for (auto &ir : bb) {
+		auto instruction = dyn_cast<GetElementPtrInst>(&ir);
+		if (instruction == nullptr)
+		continue;
+		instruction->dump();
+		instruction->getSourceElementType()->dump();
+		instruction->getResultElementType()->dump();
+		instruction->getType()->dump();
+		errs() << "getNumIndices() = " << instruction->getNumIndices();
+		errs() << "\nIndices: \n";
+		for (auto &user : dyn_cast<GetElementPtrInst>(*instruction)) {
+		user->dump();
+		}
+		errs() << "\n\n";
+		}
+		}
+
+	}*/
+	
+		
+	for(Module::iterator F = M.begin(); F !=M.end(); ++F){
+
+		errs().changeColor(raw_ostream::GREEN);
+		errs() << "Function::iterator " << F->getName()<<" ...\n";
+		errs().resetColor();
+		
+
+		
+	
+		BasicBlock* before;
+		for(Function::iterator BB = F->begin(), EE = F->end(); BB !=EE; ++BB) {
+		
+		
+		errs() << "BasicBlock::iterator" << " ...\n";
+		errs().resetColor();
+
+		/*Instruction* pi=dyn_cast<Instruction>(BB->begin());
+		insert_func(pi,"Function::iterator>\n",Print,Before);
+		*/
+		//errs()<<a<<"\n";
+		std::string a = BB->getName().str();
+		
+		
+		if(a.find(".cond")!= string::npos ||a.find(".then")!= string::npos && a.find("do.")== string ::npos){
+		//BasicBlock::reverse_iterator E2=BB->rbegin()++;
+		BasicBlock::iterator I= before->begin();
+		BasicBlock::iterator E= before->end();
+		E--;
+		//errs()<<*E2<<"\n\n";
+		for (; I != E;  ++I);
+		//for (I= BB->begin(); I != BB->end();  ++I);
+
+		//errs()<<*I<<"\n\n";
+		Instruction* Li = dyn_cast<Instruction>(I);
+		//errs()<<*I<<"\n\n";
+		insert_func(Li,a+"    hello>\n",Print,Before);
+
+		} else if (a.find(".end")!= string::npos){
+			
+		Instruction* Fi = dyn_cast<Instruction>(BB->begin());	
+		insert_func(Fi,a+"    hello>\n",Print,Before);
+
+		}else if(a.find("do.body") != string ::npos){
+			BasicBlock::iterator I= before->begin();
+			BasicBlock::iterator E= before->end();
+			E--;
+			//errs()<<*E2<<"\n\n";
+			for (; I != E;  ++I);
+			//for (I= BB->begin(); I != BB->end();  ++I);
+
+			//errs()<<*I<<"\n\n";
+			Instruction* Li = dyn_cast<Instruction>(I);
+			//errs()<<*I<<"\n\n";
+			insert_func(Li,a+"    hello>\n",Print,Before);
+		}
+
+		before = dyn_cast<BasicBlock>(BB);
+
+		/*
+		if(a.find(".end")!= string::npos || a.find(".cond")!= string::npos || a.find(".then")!= string::npos)
+		{
+			errs() <<before->getName() << "\n";
+			errs() << a <<"\n";
+
+ 			Instruction* pi=dyn_cast<Instruction>(BB->begin());
+			//if(bb_insert == 0){
+			
+			//insert_func(pi,a+"    hello>\n",Print,Before);
+
+			//std::string  Is1 = pi->getName().str();
+			
+			 
+			//}
+
+			/*if(a.find(".end")!= string::npos||a.find(".then")!= string::npos){
+
+			
+			}
+
+			errs().changeColor(raw_ostream::YELLOW);
+			errs()<<BB->getName()<<"\n";
+			errs().resetColor();
+						             
+		       
+			errs().changeColor(raw_ostream::BLUE);
+			pi->dump();
+			errs().resetColor();
+
+			
+			
+		}*/
+
+		
+		
+
+		for (BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E;  ++I) {
+			Instruction* pi=dyn_cast<Instruction>(I);
+			auto instruction = dyn_cast<GetElementPtrInst>(I);
+			
+			std::string name = pi->getName().str();
+
+
+		/*if(isa<BranchInst>(I)){
+				if(dyn_cast<BranchInst>(I)->isConditional()){
+				Instruction* pi=dyn_cast<Instruction>(I);
+				std::string s(pi->getOpcodeName(),3);
+				s+="\0";
+				errs()<<*I<<"\n";
+
+				
+				insert_func(pi,"br>\n",Print,Before);
+				//insert_func(pi,pi->getName().str()+">\n",Print,After);
+				}
+				
+			}*/
+			if (instruction == nullptr)
+					continue;
+					//errs().changeColor(raw_ostream::BLUE);
+					instruction->dump();
+					instruction->getSourceElementType()->dump();
+					instruction->getResultElementType()->dump();
+					instruction->getType()->dump();
+					instruction->getPointerOperand()->dump();
+					//errs() << "\getPointerOperandIndex: "<<instruction->getPointerOperandIndex()<<"\n";
+					for(GetElementPtrInst::op_iterator A=instruction->idx_begin(); A!= instruction->idx_end(); ++A)
+					{
+					//  *A->get();
+					}
+					//errs().resetColor();
+				/*errs().resetColor();
+				I->dump();
+				Value* addr=I->getOperand(0);
+				if (GlobalVariable *GV = dyn_cast<GlobalVariable>(addr))
+					{
+					addr->dump();
+					errs()<<"	| ----------------\n\n";
+					for( Value::user_iterator it=addr->user_begin(); it!=addr->user_begin(); ++it)
+					{
+					  //if (Instruction *useInst = dyn_cast<Instruction>(*it))
+						{
+						errs()<<"		|| ----------------\n\n";
+						errs().changeColor(raw_ostream::BLUE);
+						it->dump();
+						errs().resetColor();
+						}
+					}		
+					}*/
+
+
+				errs()<<"------------------------\n\n";
+				/*if(isa<LoadInst>(I))
+				{
+				   LoadInst* Li = dyn_cast<LoadInst>(I);
+				  errs().changeColor(raw_ostream::RED);	
+						errs()<<"tt\n";
+						
+				   errs()<<Li->getPointerOperand()<<"\n";
+					errs().resetColor();
+				   Value* addr=Li->getPointerOperand();
+				  if (GlobalVariable *GV = dyn_cast<GlobalVariable>(addr))
+					{
+						errs().changeColor(raw_ostream::RED);	
+						errs()<<"tttt\n";
+						errs().resetColor();
+						insert_func(pi,"insert>b",Print,Before);
+					}
+				}else if(isa<StoreInst>(I))
+				{
+				 StoreInst* Li = dyn_cast<StoreInst>(I);
+				 errs().changeColor(raw_ostream::GREEN);	
+						
+				   errs()<<Li->getOperand(0)<<"\n";	
+				   errs()<<Li->getOperand(1)<<"\n";
+				   Value* PO = Li->getPointerOperand();
+				  PO->dump();
+				    // since we know it's a pointer Operand we can cast safely here
+				    PointerType* PT = cast<PointerType>(PO->getType());
+				    PT->dump(); // will print i32* 
+				
+				errs().resetColor();
+				  Value* addr=Li->getPointerOperand();
+				  if (GlobalVariable *GV = dyn_cast<GlobalVariable>(addr))
+					{
+						errs().changeColor(raw_ostream::RED);	
+						errs()<<"hhhh\n";
+						errs().resetColor();
+						insert_func(pi,"insert>a",Print,After);
+					}
+				}
+			*/
+				
+//				if(isa<BranchInst>(pi))
+//				{
+			//		errs().changeColor(raw_ostream::BLUE);
+				//}
+				
+		
+			
+		}
+			
+		}
+	}
+    return false;
+  }
+
+  private:
+	Module *Mod;
+	Constant *Print;
+
+	
+	 
+}; // end of struct standard
+}  // end of anonymous namespace
+
+char standard::ID = 0;
+static RegisterPass<standard> X("standard", "standard Pass",
+                             false /* Only looks at CFG */,
+                             false /* Analysis Pass */);

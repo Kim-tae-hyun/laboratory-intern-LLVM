@@ -1,0 +1,187 @@
+#include "llvm/Pass.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Type.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/APSInt.h"
+
+
+/*
+Colors {
+  BLACK = 0, RED, GREEN, YELLOW,
+  BLUE, MAGENTA, CYAN, WHITE,
+  SAVEDCOLOR
+}
+*/
+using namespace llvm;
+using namespace std;
+
+
+
+
+namespace {
+struct standard : public ModulePass {
+  static char ID;
+  standard(): ModulePass(ID) {}
+
+
+	Instruction* getNextInstruction(Instruction& i) {
+	BasicBlock::iterator it(&i);
+	Instruction *pi =  dyn_cast<Instruction>(it); 
+
+	return pi;
+	}
+
+
+//	virtual bool doInitialization(Module &M) {
+
+//}
+virtual bool doInitialization(Module &M) {
+	Mod = &M; 
+	 // get constants needed to create a printf call
+ 	Type *charPointerType = PointerType::get(IntegerType::
+	get(Mod->getContext(), 8), 0);
+	  FunctionType *printfTy = FunctionType::get(IntegerType::get(Mod->getContext(), 32),
+ 	std::vector<Type*>(1, charPointerType), true);
+	
+  	// insert function prototype if needed
+ 	PrintBefore = M.getOrInsertFunction("printf", printfTy);
+	PrintAfter = M.getOrInsertFunction("printf", printfTy);
+	return false;
+	}
+	
+	
+	BasicBlock::iterator CalcNextLoc(BasicBlock::iterator I) {
+	BasicBlock::iterator Loc;
+	////////////////////////////////////////////////////////////////////////////////
+	// TODO: [DY]
+	// I found that pbzip2 resulted in assertion violation at assert(!I->isTerminator());
+	// I don't understand the following logic, but simply took it from neongoby's
+	// instrumentPointerInstruction function. It looks working fine.
+	// calculate the next Loc
+		/*if (isa<PHINode>(I)) {
+		// Cannot insert hooks right after a PHI, because PHINodes have to be
+		// grouped together.
+		Loc = I->getParent()->getFirstNonPHI();
+		} else*/
+		 if (!I->isTerminator()) {
+		Loc = I;
+		++Loc;
+		}
+		return Loc;
+	}
+
+  bool runOnModule(Module &M) override {
+	Mod = &M;
+	
+	
+
+	errs().changeColor(raw_ostream::RED);
+	errs() << "Module::iterator" << " ...\n";
+	errs().resetColor();
+		
+	
+
+
+	for(Module::global_iterator gs = M.global_begin(), ge = M.global_end(); gs != ge; ++gs){
+	errs() << "GlobalVariable*   : " << gs->getName();
+	//errs() << *gs <<"\n";
+		//gs->dump();
+		//if(!gs->isConstant()){
+		//gs->dump();
+		for(unsigned int i=0; i<gs->getNumOperands(); i++)
+				{
+				 errs()<<" | "<<*(gs->getOperand(i));
+ 				errs()<<" | "<<(gs->getOperand(i));
+				}	
+				errs()<<"\n";	
+		//errs() << gs->getOperand(0)<<"\n";		
+	//}
+
+	}
+
+
+	
+	
+	for(Module::iterator F = M.begin(); F !=M.end(); ++F){
+
+		errs().changeColor(raw_ostream::GREEN);
+		errs() << "Function::iterator " << F->getName()<<" ...\n";
+		errs().resetColor();
+		
+
+		for(Function::iterator BB = F->begin(), EE = F->end(); BB !=EE; ++BB) {
+		
+		errs().changeColor(raw_ostream::YELLOW);
+		errs() << "BasicBlock::iterator" << " ...\n";
+		errs().resetColor();
+
+		std::vector <Value *> Args;
+		IRBuilder<> Builder(dyn_cast<BasicBlock>(BB));
+		std::string printString="";
+		//BB->g
+		 
+		for (BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E; ++I ) {
+			
+			//printf insert at I
+			
+			//BasicBlock ba = I->getParent();
+			//BasicBlock *pb = dyn_cast<BasicBlock*>(I);
+			
+			Instruction *pi =  dyn_cast<Instruction>(I);
+			
+			errs()<<pi->getOpcodeName()<<"\n";			
+			printString ="insert Before>\n";
+			Args.push_back( Builder.CreateGlobalStringPtr(printString.c_str()) );	
+			 pi->getParent()->getInstList().insert(pi->getIterator(), CallInst::Create(PrintBefore, Args, "")); 
+//			if()
+			if(!pi->isTerminator())
+				errs() <<"hello\n";
+			pi->getParent()->getInstList().insertAfter(pi->getIterator(), CallInst::Create(PrintAfter, Args, "")); 
+			//Args.clear();
+			//printString ="insert after>\n";
+			//Args.push_back( Builder.CreateGlobalStringPtr(printString.c_str()) );	
+			
+		
+			
+			/*errs().changeColor(raw_ostream::YELLOW);
+			I->dump();
+			errs().resetColor();
+			//next 
+			BasicBlock::iterator I2=CalcNextLoc(*I);
+			I2->dump();
+			Instruction *pi2 =  dyn_cast<Instruction>(I2);
+			printString ="insert After>\n";
+			Args.push_back( Builder.CreateGlobalStringPtr(printString.c_str()) );	
+			CallInst::Create(PrintAfter, Args, "",pi2 );
+			Args.clear();
+			printString = "";*/
+			//printf insert at I2
+
+
+		//std::string str="errs()";
+		//llvm::raw_string_ostream rso(str);
+		//I->print(rso);
+				
+			}
+		}	
+	}
+    return false;
+  }
+
+  private:
+	Module *Mod;
+	Constant *PrintBefore;
+	Constant *PrintAfter;
+	
+	 
+}; // end of struct Hello
+}  // end of anonymous namespace
+
+char standard::ID = 0;
+static RegisterPass<standard> X("standard", "standard Pass",
+                             false /* Only looks at CFG */,
+                             false /* Analysis Pass */);

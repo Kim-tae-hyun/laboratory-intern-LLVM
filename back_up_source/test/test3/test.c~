@@ -1,0 +1,49 @@
+#include <stdio.h>
+
+
+
+int main(){
+	
+	int i =1;
+
+
+	//printf("if s>\n");
+	if(i==1)
+	{
+	i++;
+	}else if(i==0){
+
+	i++;
+	}else{
+
+	i++;
+	}
+	
+	do{
+
+	i++;
+	}while(i<3);
+	//printf("if e>\n");
+
+
+	//printf("while s>\n");
+	while(i<10)
+	{
+
+	
+	i++;
+	}
+	//printf("while e>\n");
+
+	int j =0;
+	int k =0;
+	//printf("for s>\n");
+	for(j=0; j<10; j++){
+	
+	i++;
+	
+	}
+	//printf("for e>\n");
+
+	return 0;
+}

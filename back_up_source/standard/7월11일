@@ -1,0 +1,224 @@
+#include "llvm/Pass.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Type.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/APSInt.h"
+#include "llvm/IR/Instruction.h"
+
+
+#define Before 0
+#define After 1
+
+
+
+using namespace llvm;
+using namespace std;
+
+
+
+namespace {
+struct standard : public ModulePass {
+  static char ID;
+  standard(): ModulePass(ID) {}
+
+
+	Instruction* getNextInstruction(Instruction& i) {
+	BasicBlock::iterator it(&i);
+	Instruction *pi =  dyn_cast<Instruction>(it); 
+
+	return pi;
+	}
+
+virtual bool doInitialization(Module &M) {
+	Mod = &M; 
+	 // get constants needed to create a printf call
+ 	Type *charPointerType = PointerType::get(IntegerType::
+	get(Mod->getContext(), 8), 0);
+	  FunctionType *printfTy = FunctionType::get(IntegerType::get(Mod->getContext(), 32),
+ 	std::vector<Type*>(1, charPointerType), true);
+
+	
+	
+	
+  	// insert function prototype if needed
+ 	Print = M.getOrInsertFunction("printf", printfTy);
+	return false;
+	}
+
+	
+void insert_func(Instruction* I,std::string printString,Constant* func,unsigned char flag){
+
+		std::vector <Value *> Args;
+		std::vector <OperandBundleDef> bundles;
+		
+		IRBuilder<> Builder(dyn_cast<BasicBlock>(I->getParent()));
+		Args.push_back( Builder.CreateGlobalStringPtr(printString.c_str()) );
+		if(flag==Before){
+		I->getParent()->begin()->getParent()->getInstList().insert(I->getIterator(), CallInst::Create(func, Args, ""));
+		}else if(flag==After){
+		I->getParent()->begin()->getParent()->getInstList().insertAfter(I->getIterator(), CallInst::Create(func, Args, ""));
+		}
+}
+	
+	bool isPointerToPointer(const Value* V) {
+    const Type* T = V->getType();
+    return T->isPointerTy() && T->getContainedType(0)->isPointerTy();
+}
+
+
+  bool runOnModule(Module &M) override {
+	Mod = &M;
+	
+	errs().changeColor(raw_ostream::RED);
+	errs() << "Module::iterator" << " ...\n";
+	errs().resetColor();
+	llvm::ArrayRef <Value *> idxList;
+	
+		
+	for(Module::iterator F = M.begin(); F !=M.end(); ++F){
+
+		errs().changeColor(raw_ostream::GREEN);
+		errs() << "Function::iterator " << F->getName()<<" ...\n";
+		errs().resetColor();
+
+	
+		for(Function::iterator BB = F->begin(), EE = F->end(); BB !=EE; ++BB) {
+		
+		
+		errs() << "BasicBlock::iterator" << " ...\n";
+		errs().resetColor();
+
+
+
+		for(BasicBlock::iterator IS = BB->begin(), IE = BB->end(); IS !=IE; ++IS){
+
+		IS->dump();
+		
+
+
+	if (LoadInst *LI = dyn_cast<LoadInst>(IS))
+	{
+		//포인터가 변수를 가리키면 if문 성립 address 에 가리키면 성립안한다.
+
+		Value *V1 = LI->getOperand(0);
+
+		Value* val=LI->getPointerOperand();
+		if(isPointerToPointer(val)){
+
+			val->dump();
+			errs() << "point global variable \n";
+
+			}
+		
+
+		errs().changeColor(raw_ostream::RED);
+		errs() << "V1 : \n";
+		errs() << "dump() : ";
+			V1->dump();
+		errs() << "getName() : ";
+		errs() <<V1->getName() << "\n";
+
+		Value* Pointer = LI->getPointerOperand();
+		errs() << "Pointer : \n";
+		errs() << "dump() : ";
+			Pointer->dump();
+		errs() << "getName() : ";
+		errs() <<Pointer->getName() << "\n";
+
+		if(isa<GlobalVariable>(V1)){
+			
+			IS++;
+			
+		//errs() << "V1 : \n";
+		//errs() << "dump() : ";
+		//	V1->dump();
+			errs().resetColor();
+			LI = dyn_cast<LoadInst>(IS);
+			Value *V2 = LI->getPointerOperand();
+			if(isPointerToPointer(V2)){
+
+			V2->dump();
+			errs() << "point global variable \n";
+
+			}
+		}
+		
+		
+		errs().resetColor();
+	}
+	else if (StoreInst *si = dyn_cast<StoreInst>(IS))
+	{ //store instruction 
+		//포인터가 변수를 가리키면 if문 성립 address 에 가리키면 성립안한다.
+		errs().changeColor(raw_ostream::YELLOW);
+
+	     	Value *V1 = si->getOperand(0);
+
+		Value *Va = si->getOperand(1);
+		errs() << "V1 : \n";
+		errs() << "dump() : ";
+		V1->dump();
+
+		errs () <<"getName() : "  <<V1->getName() <<"\n";
+		errs () <<"getValueID() : "<<V1->getValueID() <<"\n";
+
+
+		errs() << "Va : \n";
+		errs() << "dump() : ";
+		Va->dump();
+		errs () <<"getName() : "  <<Va->getName() <<"\n";
+		errs () <<"getValueID() : "<<Va->getValueID() <<"\n";
+
+		
+		if(LoadInst *loadI = dyn_cast<LoadInst>(Va)){
+		loadI->dump();
+		Value *V1 = loadI->getOperand(0);
+		errs() <<"0 "<<V1->getName() <<"\n";
+		
+		errs().resetColor();
+		errs() << "\n \n";
+
+		}
+		//일단 변수 이름이 나온다 //errs() << V1->getName() << "\n"; 
+		Value *V2 = si->getPointerOperand();
+		errs().changeColor(raw_ostream::GREEN);
+		
+		if(isa<GlobalVariable>(V1) && isPointerToPointer(V2)){
+		si->dump();
+		errs() << "point global variable \n";
+		
+		}
+
+		errs().resetColor();
+		
+		
+		}
+
+
+		}
+
+	}			
+			
+} 
+
+
+	
+    return false;
+  }
+
+  private:
+	Module *Mod;
+	Constant *Print;
+
+	
+	 
+}; // end of struct standard
+}  // end of anonymous namespace
+
+char standard::ID = 0;
+static RegisterPass<standard> X("standard", "standard Pass",
+                             false /* Only looks at CFG */,
+                             false /* Analysis Pass */);

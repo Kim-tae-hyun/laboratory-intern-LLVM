@@ -1,0 +1,119 @@
+#include "llvm/Pass.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Type.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/StringExtras.h"
+
+
+
+using namespace llvm;
+
+namespace {
+struct standard : public ModulePass {
+  static char ID;
+  standard() : ModulePass(ID) {}
+
+//	virtual bool doInitialization(Module &M) {
+
+//}
+virtual bool doInitialization(Module &M) {
+	 Mod = &M; 
+	 // get constants needed to create a printf call
+ 	Type *charPointerType = PointerType::get(IntegerType::
+	get(Mod->getContext(), 8), 0);
+	  FunctionType *printfTy = FunctionType::get(IntegerType::get(Mod->getContext(), 32),
+ 	std::vector<Type*>(1, charPointerType), true);
+	
+  	// insert function prototype if needed
+ 	PrintFunc = M.getOrInsertFunction("printf", printfTy);
+	//PrintGlobal = M.getOrInsetGlobal("number",printfTy);
+	return false;
+	}
+
+  bool runOnModule(Module &M) override {
+
+	
+
+	errs().changeColor(raw_ostream::RED);
+	errs() << "Module::iterator" << " ...\n";
+	errs().resetColor();
+	//Type::subtype_iterator Tit;
+	
+/*
+	GlobalVariable* str =M.getNamedGlobal("str");
+	errs() << "GlobalVariable* str adress : " << str << "\n";
+	errs() << "GlobalVariable* str Instruction : " << *str << "\n";
+*/
+	GlobalValue* number =M.getNamedGlobal("number");
+	number->dump();
+	//errs() << "GlobalVariable* number adress : " << number << "\n";
+	//errs() << "GlobalVariable* number Instruction : " << *number << "\n";
+
+
+	//for(Module::global_iterator gs = M.global_begin(), ge = M.global_end(); gs != ge; ++gs){
+	//errs() << gs->getName() << " \n";
+	//errs() << *gs <<"\n";
+
+	//}
+	
+//	FunctionType *function= get;
+	//M.getOrInsertGlobal("str",2);
+	
+	
+	for(Module::iterator F = M.begin(); F !=M.end(); ++F){
+
+		errs().changeColor(raw_ostream::GREEN);
+		errs() << "Function::iterator" << " ...\n";
+		errs().resetColor();
+
+		
+
+		for(Function::iterator BB = F->begin(), EE = F->end(); BB !=EE; ++BB) {
+		std::vector <Value *> Args;
+		IRBuilder<> Builder(dyn_cast<BasicBlock>(BB));
+		std::string printString="";
+		errs().changeColor(raw_ostream::YELLOW);
+		errs() << "BasicBlock::iterator" << " ...\n";
+		errs().resetColor();
+		
+		  for (BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E; ++I) {
+			errs()<<"BasicBlock::iterator I : "<<*I<<"\n";
+
+			if(Instruction *pi =  dyn_cast<Instruction>(I))
+			{	
+			
+
+			for (User::op_iterator i = pi->op_begin(), e = pi->op_end(); i != e; ++i) {
+
+				errs().changeColor(raw_ostream::BLUE);
+				  printString +="insert> *v : \n"+s+"\n";
+ 				  Args.push_back( Builder.CreateGlobalStringPtr(printString.c_str()) );	
+			  	  CallInst::Create(PrintFunc, Args, "", pi);
+				  Args.clear();
+				  printString = "";
+				errs()<<"User::op_iterator *i : "<<*i<<"\n";
+				errs()<<"User::op_iterator i : "<<i<<"\n";
+				errs().resetColor();
+			  // ...
+			}
+			}
+		}
+		}	
+	}
+    return false;
+  }
+
+  private:
+	  Module *Mod;
+	  Constant *PrintFunc;
+	  Constant *PrintGlobal;
+
+}; // end of struct Hello
+}  // end of anonymous namespace
+
+char standard::ID = 0;
+static RegisterPass<standard> X("standard", "standard Pass",
+                             false /* Only looks at CFG */,
+                             false /* Analysis Pass */);
